@@ -8,12 +8,12 @@ import {
   ScrollView, 
   Alert,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Animated
 } from 'react-native';
 import { socket } from '../services/socket';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-// Tipagem da rota para o TypeScript reconhecer o navigation.replace
 type RootStackParamList = {
   Login: undefined;
   Battle: { roomId: string; nickname: string; playerClass: string };
@@ -23,18 +23,54 @@ type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
 };
 
+// 1. Array de CLASSES enriquecido com descrições imersivas e "Perks" (RF10)
 const CLASSES = [
-  { id: 'front-end', name: 'Front-end', color: '#38bdf8', desc: 'UI/UX & Layout' },
-  { id: 'back-end', name: 'Back-end', color: '#818cf8', desc: 'Lógica & APIs' },
-  { id: 'devops', name: 'DevOps', color: '#f59e0b', desc: 'Infra & Deploy' },
-  { id: 'qa', name: 'QA Tester', color: '#10b981', desc: 'Testes & Qualidade' },
-  { id: 'security', name: 'Security', color: '#f43f5e', desc: 'Segurança & WAF' },
+  { 
+    id: 'front-end', 
+    name: 'Front-end', 
+    color: '#38bdf8', 
+    short: 'UI/UX & Layout',
+    desc: 'Os artistas da interface. Você é responsável por manter a estrutura visual intacta. Seus ataques são rápidos e focados no lado do cliente.',
+    perk: 'Dano crítico contra Layout Shifts e bugs de CSS.' 
+  },
+  { 
+    id: 'back-end', 
+    name: 'Back-end', 
+    color: '#818cf8', 
+    short: 'Lógica & APIs',
+    desc: 'Os arquitetos da lógica. Você lida com o peso do processamento de dados. Seus ataques causam dano consistente e estrutural.',
+    perk: 'Especialista em resolver Deadlocks no Banco de Dados.' 
+  },
+  { 
+    id: 'devops', 
+    name: 'DevOps', 
+    color: '#f59e0b', 
+    short: 'Infra & Deploy',
+    desc: 'Os guardiões da infraestrutura. Você mantém o servidor respirando. Classe vital para a sobrevivência do time em momentos de caos.',
+    perk: 'Restaura a estabilidade apagando picos de CPU.' 
+  },
+  { 
+    id: 'qa', 
+    name: 'QA Tester', 
+    color: '#10b981', 
+    short: 'Testes & Qualidade',
+    desc: 'Os caçadores de bugs. Nada escapa aos seus olhos. Você encontra as fraquezas sistêmicas que as outras classes deixam passar.',
+    perk: 'Habilidade única de barrar regressões em Produção.' 
+  },
+  { 
+    id: 'security', 
+    name: 'Security', 
+    color: '#f43f5e', 
+    short: 'Segurança & WAF',
+    desc: 'A linha de defesa final. Você protege a aplicação contra ameaças externas e injeções maliciosas.',
+    perk: 'Neutraliza ataques de Brute Force e SQL Injection.' 
+  },
 ];
 
 export default function LoginScreen({ navigation }: Props) {
   const [roomId, setRoomId] = useState('');
   const [nickname, setNickname] = useState('');
-  const [selectedClass, setSelectedClass] = useState<string | null>(null); // Tipagem adicionada
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
   useEffect(() => {
@@ -63,7 +99,7 @@ export default function LoginScreen({ navigation }: Props) {
   }, [navigation]);
 
   const handleJoin = () => {
-    if (!roomId.trim() || !nickname.trim() || !selectedClass) {
+    if (!roomId.trim() || !nickname.trim() || !selectedClassId) {
       Alert.alert('Atenção', 'Preencha o ID da Sala, seu Nickname e escolha uma Classe.');
       return;
     }
@@ -73,10 +109,13 @@ export default function LoginScreen({ navigation }: Props) {
     
     socket.emit('join_game', { 
       nickname: nickname.trim(), 
-      class: selectedClass, 
+      class: selectedClassId, 
       room_id: roomId.trim() 
     });
   };
+
+  // 2. Variável auxiliar para pegar o objeto completo da classe selecionada
+  const selectedClassDetails = CLASSES.find(c => c.id === selectedClassId);
 
   return (
     <KeyboardAvoidingView 
@@ -118,17 +157,31 @@ export default function LoginScreen({ navigation }: Props) {
                 key={cls.id}
                 style={[
                   styles.classCard, 
-                  selectedClass === cls.id && { borderColor: cls.color, backgroundColor: `${cls.color}20` }
+                  selectedClassId === cls.id && { borderColor: cls.color, backgroundColor: `${cls.color}20` }
                 ]}
-                onPress={() => setSelectedClass(cls.id)}
+                onPress={() => setSelectedClassId(cls.id)}
               >
-                <Text style={[styles.className, selectedClass === cls.id && { color: cls.color }]}>
+                <Text style={[styles.className, selectedClassId === cls.id && { color: cls.color }]}>
                   {cls.name}
                 </Text>
-                <Text style={styles.classDesc}>{cls.desc}</Text>
+                <Text style={styles.classDesc}>{cls.short}</Text>
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* 3. NOVA ÁREA: Painel de Detalhes da Classe Selecionada */}
+          {selectedClassDetails && (
+            <View style={[styles.detailsPanel, { borderColor: selectedClassDetails.color }]}>
+              <Text style={styles.detailsTitle}>Informações da Classe</Text>
+              <Text style={styles.detailsDesc}>{selectedClassDetails.desc}</Text>
+              <View style={styles.perkBadge}>
+                <Text style={[styles.perkText, { color: selectedClassDetails.color }]}>
+                  ✨ Habilidade: {selectedClassDetails.perk}
+                </Text>
+              </View>
+            </View>
+          )}
+
         </View>
 
         <TouchableOpacity 
@@ -146,7 +199,6 @@ export default function LoginScreen({ navigation }: Props) {
   );
 }
 
-// ... manter o mesmo StyleSheet.create original abaixo ...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -218,6 +270,38 @@ const styles = StyleSheet.create({
   classDesc: {
     color: '#64748b',
     fontSize: 11,
+  },
+  // NOVOS ESTILOS PARA O PAINEL DE DETALHES
+  detailsPanel: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: '#111827', // Fundo mais escuro para destacar
+    borderWidth: 1,
+    borderRadius: 12,
+    borderStyle: 'dashed', // Dá uma cara de "ficha de RPG"
+  },
+  detailsTitle: {
+    color: '#cbd5e1',
+    fontWeight: 'bold',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  detailsDesc: {
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  perkBadge: {
+    backgroundColor: '#1e293b',
+    padding: 8,
+    borderRadius: 8,
+  },
+  perkText: {
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   button: {
     backgroundColor: '#6366f1',
