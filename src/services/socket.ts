@@ -1,6 +1,6 @@
 import { io } from 'socket.io-client';
 
-const BACKEND_URL = 'https://exchanges-ordering-disable-session.trycloudflare.com'; 
+const BACKEND_URL = 'https://gap-practice-tim-can.trycloudflare.com'; 
 
 export const socket = io(BACKEND_URL, {
   autoConnect: false,
