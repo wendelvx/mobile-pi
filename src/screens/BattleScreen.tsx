@@ -16,7 +16,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 // Ícones básicos provisórios
 const LockIcon = () => <Text style={{fontSize: 40}}>🔒</Text>; 
-const HourglassIcon = () => <Text style={{fontSize: 40}}>⏳</Text>; // NOVO ÍCONE DE ESPERA
+const HourglassIcon = () => <Text style={{fontSize: 40}}>⏳</Text>; 
 const TrophyIcon = () => <Text style={{fontSize: 80, marginBottom: 20}}>🏆</Text>;
 const SkullIcon = () => <Text style={{fontSize: 80, marginBottom: 20}}>💀</Text>;
 
@@ -44,8 +44,13 @@ export default function BattleScreen({ route, navigation }: Props) {
   const [sequenceInputs, setSequenceInputs] = useState<string[]>([]);
   const [clickCount, setClickCount] = useState(0);
   
-  // Animação de erro no botão de ataque
+  // Animações
   const shakeAnimation = useRef(new Animated.Value(0)).current;
+  const bossHitAnim = useRef(new Animated.Value(1)).current; // NOVO: Animação do Boss
+  
+  // Controle de Dano e Tempo para Animação do Boss
+  const prevBossHp = useRef<number | null>(null);
+  const lastHitAnimTime = useRef<number>(0);
 
   useEffect(() => {
     socket.on('disconnect', () => {
@@ -55,13 +60,30 @@ export default function BattleScreen({ route, navigation }: Props) {
     socket.on('boss_update', (data) => {
       setGameState(data);
       
+      // ========================================================
+      // LÓGICA DA ANIMAÇÃO DE DANO (THROTTLE DE 400ms)
+      // ========================================================
+      if (prevBossHp.current !== null && data.boss_hp < prevBossHp.current) {
+        const now = Date.now();
+        // Só anima se passou mais de 400ms desde a última animação para não bugar a tela
+        if (now - lastHitAnimTime.current > 400) {
+           lastHitAnimTime.current = now;
+           Animated.sequence([
+             Animated.timing(bossHitAnim, { toValue: 0.8, duration: 80, useNativeDriver: true }),
+             Animated.timing(bossHitAnim, { toValue: 1.05, duration: 80, useNativeDriver: true }),
+             Animated.timing(bossHitAnim, { toValue: 1, duration: 80, useNativeDriver: true })
+           ]).start();
+        }
+      }
+      prevBossHp.current = data.boss_hp;
+      // ========================================================
+
       if (data.status === 'victory') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else if (data.status === 'defeat') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
       
-      // Se o incidente foi resolvido (ou acabou), limpa os estados dos mini-games locais
       if (!data.active_incident) {
         setSequenceInputs([]);
         setClickCount(0);
@@ -71,22 +93,22 @@ export default function BattleScreen({ route, navigation }: Props) {
     socket.on('room_reset', () => {
        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
        Alert.alert('Nova Tentativa', 'O Professor resetou a masmorra. Preparem-se para um novo round!');
+       prevBossHp.current = null; // Reseta a referência da vida ao reiniciar
     });
 
-    // 💥 NOVO: Escuta a exclusão da sala e devolve o aluno pro Login
     socket.on('room_deleted', (data) => {
        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
        Alert.alert('Sessão Encerrada', data.message);
-       navigation.replace('Login'); // Redireciona de volta
+       navigation.replace('Login'); 
     });
 
     return () => {
       socket.off('boss_update');
       socket.off('room_reset');
-      socket.off('room_deleted'); // Limpeza do novo evento
+      socket.off('room_deleted'); 
       socket.off('disconnect');
     };
-  }, [navigation]);
+  }, [navigation, bossHitAnim]);
 
   const triggerShake = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -101,7 +123,6 @@ export default function BattleScreen({ route, navigation }: Props) {
   const handleAttack = () => {
     if (onCooldown) return;
     
-    // NOVO: Se estiver aguardando o professor, treme o botão e recusa o ataque
     if (gameState?.status === 'waiting') {
         triggerShake();
         return;
@@ -168,13 +189,35 @@ export default function BattleScreen({ route, navigation }: Props) {
           {isVictory ? 'A equipe derrotou o incidente final.' : 'A integridade da equipe chegou a zero.'}
         </Text>
         
-        {/* Painel do MVP */}
-        {gameState.mvp && (
+        {/* Painel do TOP 3 */}
+        {gameState.top_rank && gameState.top_rank.length > 0 && (
           <View style={styles.mvpPanel}>
-            <Text style={styles.mvpLabel}>🌟 DESTAQUE TÉCNICO (MVP) 🌟</Text>
-            <Text style={styles.mvpName}>{gameState.mvp.nickname}</Text>
-            <Text style={styles.mvpClass}>Esquadrão: {gameState.mvp.class.toUpperCase()}</Text>
-            <Text style={styles.mvpDamage}>{gameState.mvp.damage} de Dano Causado</Text>
+            <Text style={styles.mvpLabel}>🌟 TOP 3 DESTAQUES 🌟</Text>
+            
+            {gameState.top_rank.map((player: any, index: number) => (
+              <View 
+                key={player.nickname} 
+                style={[
+                  styles.rankItem, 
+                  index === 0 && styles.rankItemFirst // Destaque extra para o 1º lugar
+                ]}
+              >
+                <Text style={[styles.rankPos, index === 0 && { color: '#fbbf24' }]}>
+                  #{index + 1}
+                </Text>
+                
+                <View style={styles.rankInfo}>
+                  <Text style={[styles.rankName, index === 0 && { color: '#fbbf24' }]}>
+                    {player.nickname}
+                  </Text>
+                  <Text style={styles.rankClass}>{player.class.toUpperCase()}</Text>
+                </View>
+
+                <Text style={[styles.rankDamage, index === 0 && { color: '#fbbf24' }]}>
+                  {player.damage} DMG
+                </Text>
+              </View>
+            ))}
           </View>
         )}
       </View>
@@ -187,7 +230,7 @@ export default function BattleScreen({ route, navigation }: Props) {
   const bossHpPercent = Math.max(0, (gameState.boss_hp / gameState.current_boss.max_hp) * 100);
   const teamHpPercent = Math.max(0, ((gameState.team_hp || 100) / (gameState.max_team_hp || 100)) * 100); 
 
-  const isWaiting = gameState.status === 'waiting'; // NOVO: Flag de espera
+  const isWaiting = gameState.status === 'waiting';
   const hasIncident = gameState.active_incident !== null;
   const isMyIncident = hasIncident && gameState.active_incident.target_class === playerClass;
   const bossAvatarSource = BOSS_AVATARS[gameState.current_boss?.id] || BOSS_AVATARS['infra_boss'];
@@ -213,17 +256,18 @@ export default function BattleScreen({ route, navigation }: Props) {
 
       {/* Área do Boss */}
       <View style={styles.bossArea}>
-        <View style={[
+        <Animated.View style={[
             styles.avatarContainer, 
             isCriticalHp && styles.avatarCritical,
-            isWaiting && { opacity: 0.5 } // Deixa o Boss meio apagado enquanto aguarda
+            isWaiting && { opacity: 0.5 },
+            { transform: [{ scale: bossHitAnim }] } // Animação aplicada aqui!
         ]}>
             <Image 
                 source={bossAvatarSource} 
                 style={styles.bossAvatar} 
                 resizeMode="cover" 
             />
-        </View>
+        </Animated.View>
         
         <Text style={styles.bossName}>{gameState.current_boss.name}</Text>
         <Text style={[styles.hpText, isCriticalHp && { color: '#f43f5e', fontWeight: 'bold' }]}>
@@ -237,7 +281,6 @@ export default function BattleScreen({ route, navigation }: Props) {
 
       {/* ÁREA DE INCIDENTE INTERATIVA / TELA DE ESPERA */}
       {isWaiting ? (
-        // NOVO: PAINEL DE "AGUARDANDO START"
         <View style={[styles.incidentArea, styles.waitingBorder]}>
            <HourglassIcon />
            <Text style={styles.lockedTitle}>AGUARDANDO LIBERAÇÃO</Text>
@@ -351,7 +394,7 @@ export default function BattleScreen({ route, navigation }: Props) {
         <View style={styles.spacerBox} />
       )}
 
-      {/* Botão Gigante de Ataque (AGORA MUDA COM O WAITING) */}
+      {/* Botão Gigante de Ataque */}
       <View style={styles.actionArea}>
         <Animated.View style={{ transform: [{ translateX: shakeAnimation }] }}>
           <TouchableOpacity 
@@ -399,9 +442,15 @@ const styles = StyleSheet.create({
   endGameSubtitle: { fontSize: 16, color: '#cbd5e1', textAlign: 'center', marginBottom: 40 },
   mvpPanel: { backgroundColor: 'rgba(0,0,0,0.4)', padding: 25, borderRadius: 16, borderWidth: 2, borderColor: '#fbbf24', width: '100%', alignItems: 'center' },
   mvpLabel: { color: '#fbbf24', fontWeight: '900', fontSize: 14, marginBottom: 15, letterSpacing: 2 },
-  mvpName: { color: 'white', fontSize: 32, fontWeight: 'bold', textTransform: 'uppercase' },
-  mvpClass: { color: '#cbd5e1', fontSize: 16, marginTop: 5, fontWeight: 'bold' },
-  mvpDamage: { color: '#38bdf8', fontSize: 22, fontWeight: '900', marginTop: 15 },
+  
+  // ESTILOS NOVOS DO RANKING
+  rankItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e293b', width: '100%', padding: 12, borderRadius: 10, marginBottom: 8, borderWidth: 1, borderColor: '#334155' },
+  rankItemFirst: { backgroundColor: 'rgba(251, 191, 36, 0.1)', borderColor: '#fbbf24' },
+  rankPos: { fontSize: 24, fontWeight: '900', color: '#64748b', width: 45 },
+  rankInfo: { flex: 1, paddingLeft: 10 },
+  rankName: { color: 'white', fontSize: 18, fontWeight: 'bold', textTransform: 'uppercase' },
+  rankClass: { color: '#94a3b8', fontSize: 12, fontWeight: 'bold' },
+  rankDamage: { color: '#38bdf8', fontSize: 16, fontWeight: '900' },
 
   bossArea: { alignItems: 'center', marginBottom: 20 },
   avatarContainer: {
@@ -435,14 +484,11 @@ const styles = StyleSheet.create({
   incidentActiveBorder: { backgroundColor: '#4c0519', borderColor: '#e11d48', borderWidth: 2 },
   incidentLockedBorder: { backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1, borderStyle: 'dashed' },
   
-  // NOVO: Borda temática para quando o jogo está aguardando o professor
   waitingBorder: { backgroundColor: '#1e293b', borderColor: '#f59e0b', borderWidth: 1, borderStyle: 'dashed' },
 
   incidentTitle: { color: '#fda4af', fontWeight: '900', fontSize: 18, marginBottom: 2, textAlign: 'center', letterSpacing: 1 },
   incidentDesc: { color: '#fecdd3', marginBottom: 5, textAlign: 'center', fontSize: 13 },
-  
   incidentProgress: { color: '#38bdf8', fontWeight: 'bold', fontSize: 14, textAlign: 'center', marginBottom: 5 },
-  
   incidentTimer: { color: '#f43f5e', fontWeight: 'bold', marginBottom: 10, textAlign: 'center', fontSize: 16 },
   incidentTimerLock: { color: '#64748b', fontWeight: 'bold', marginTop: 10, textAlign: 'center', fontSize: 14 },
   
