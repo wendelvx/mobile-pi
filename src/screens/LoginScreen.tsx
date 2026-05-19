@@ -9,7 +9,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-  Animated
 } from 'react-native';
 import { socket } from '../services/socket';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -23,7 +22,6 @@ type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
 };
 
-// 1. Array de CLASSES enriquecido com descrições imersivas e "Perks" (RF10)
 const CLASSES = [
   { 
     id: 'front-end', 
@@ -114,15 +112,19 @@ export default function LoginScreen({ navigation }: Props) {
     });
   };
 
-  // 2. Variável auxiliar para pegar o objeto completo da classe selecionada
   const selectedClassDetails = CLASSES.find(c => c.id === selectedClassId);
 
   return (
     <KeyboardAvoidingView 
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         
         <View style={styles.header}>
           <Text style={styles.title}>DUNGEON <Text style={styles.highlight}>MASTER</Text></Text>
@@ -169,18 +171,24 @@ export default function LoginScreen({ navigation }: Props) {
             ))}
           </View>
 
-          {/* 3. NOVA ÁREA: Painel de Detalhes da Classe Selecionada */}
-          {selectedClassDetails && (
-            <View style={[styles.detailsPanel, { borderColor: selectedClassDetails.color }]}>
-              <Text style={styles.detailsTitle}>Informações da Classe</Text>
-              <Text style={styles.detailsDesc}>{selectedClassDetails.desc}</Text>
-              <View style={styles.perkBadge}>
-                <Text style={[styles.perkText, { color: selectedClassDetails.color }]}>
-                  ✨ Habilidade: {selectedClassDetails.perk}
-                </Text>
+          {/* Um bloco reservado para manter a altura estável */}
+          <View style={styles.detailsContainer}>
+            {selectedClassDetails ? (
+              <View style={[styles.detailsPanel, { borderColor: selectedClassDetails.color }]}>
+                <Text style={styles.detailsTitle}>Informações da Classe</Text>
+                <Text style={styles.detailsDesc}>{selectedClassDetails.desc}</Text>
+                <View style={styles.perkBadge}>
+                  <Text style={[styles.perkText, { color: selectedClassDetails.color }]}>
+                    ✨ Habilidade: {selectedClassDetails.perk}
+                  </Text>
+                </View>
               </View>
-            </View>
-          )}
+            ) : (
+              <View style={styles.detailsPlaceholder}>
+                <Text style={styles.placeholderText}>Selecione uma classe para ver seus detalhes.</Text>
+              </View>
+            )}
+          </View>
 
         </View>
 
@@ -202,17 +210,18 @@ export default function LoginScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0b10', // Dark Mode
+    backgroundColor: '#0a0b10', 
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 24,
-    justifyContent: 'center',
+    // REMOVIDO: justifyContent: 'center' que causava os pulos na tela
+    paddingHorizontal: 24,
+    paddingTop: 60, // Dá espaço em cima no lugar de centralizar
+    paddingBottom: 40,
   },
   header: {
     alignItems: 'center',
     marginBottom: 40,
-    marginTop: 40,
   },
   title: {
     fontSize: 32,
@@ -271,14 +280,31 @@ const styles = StyleSheet.create({
     color: '#64748b',
     fontSize: 11,
   },
-  // NOVOS ESTILOS PARA O PAINEL DE DETALHES
-  detailsPanel: {
+  detailsContainer: {
     marginTop: 20,
+    minHeight: 140, // Mantém a altura reservada para não pular
+  },
+  detailsPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    borderStyle: 'dashed',
+    borderRadius: 12,
     padding: 16,
-    backgroundColor: '#111827', // Fundo mais escuro para destacar
+  },
+  placeholderText: {
+    color: '#475569',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  detailsPanel: {
+    padding: 16,
+    backgroundColor: '#111827', 
     borderWidth: 1,
     borderRadius: 12,
-    borderStyle: 'dashed', // Dá uma cara de "ficha de RPG"
+    borderStyle: 'dashed', 
   },
   detailsTitle: {
     color: '#cbd5e1',

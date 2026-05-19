@@ -16,6 +16,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 // Ícones básicos provisórios
 const LockIcon = () => <Text style={{fontSize: 40}}>🔒</Text>; 
+const HourglassIcon = () => <Text style={{fontSize: 40}}>⏳</Text>; // NOVO ÍCONE DE ESPERA
 const TrophyIcon = () => <Text style={{fontSize: 80, marginBottom: 20}}>🏆</Text>;
 const SkullIcon = () => <Text style={{fontSize: 80, marginBottom: 20}}>💀</Text>;
 
@@ -90,7 +91,15 @@ export default function BattleScreen({ route, navigation }: Props) {
   };
 
   const handleAttack = () => {
-    if (onCooldown || gameState?.status !== 'fighting') return;
+    if (onCooldown) return;
+    
+    // NOVO: Se estiver aguardando o professor, treme o botão e recusa o ataque
+    if (gameState?.status === 'waiting') {
+        triggerShake();
+        return;
+    }
+    
+    if (gameState?.status !== 'fighting') return;
 
     if (gameState.active_incident && gameState.active_incident.target_class !== playerClass) {
         triggerShake();
@@ -125,6 +134,7 @@ export default function BattleScreen({ route, navigation }: Props) {
     
     if (newCount.toString() === gameState.active_incident.solution) {
       submitResolution(newCount.toString());
+      setClickCount(0);
     }
   };
 
@@ -164,16 +174,16 @@ export default function BattleScreen({ route, navigation }: Props) {
   }
 
   // ==========================================
-  // ESTADO NORMAL (EM COMBATE)
+  // ESTADO NORMAL (EM COMBATE OU ESPERANDO)
   // ==========================================
   const bossHpPercent = Math.max(0, (gameState.boss_hp / gameState.current_boss.max_hp) * 100);
-  // Garante que o frontend não quebre antes da Engine Go enviar o MaxTeamHP
   const teamHpPercent = Math.max(0, ((gameState.team_hp || 100) / (gameState.max_team_hp || 100)) * 100); 
 
+  const isWaiting = gameState.status === 'waiting'; // NOVO: Flag de espera
   const hasIncident = gameState.active_incident !== null;
   const isMyIncident = hasIncident && gameState.active_incident.target_class === playerClass;
   const bossAvatarSource = BOSS_AVATARS[gameState.current_boss?.id] || BOSS_AVATARS['infra_boss'];
-  const isCriticalHp = bossHpPercent < 20;
+  const isCriticalHp = bossHpPercent < 20 && !isWaiting;
 
   return (
     <View style={styles.container}>
@@ -193,11 +203,12 @@ export default function BattleScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      {/* Área do Boss COM FOTO REAL */}
+      {/* Área do Boss */}
       <View style={styles.bossArea}>
         <View style={[
             styles.avatarContainer, 
-            isCriticalHp && styles.avatarCritical 
+            isCriticalHp && styles.avatarCritical,
+            isWaiting && { opacity: 0.5 } // Deixa o Boss meio apagado enquanto aguarda
         ]}>
             <Image 
                 source={bossAvatarSource} 
@@ -216,12 +227,27 @@ export default function BattleScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      {/* ÁREA DE INCIDENTE INTERATIVA */}
-      {hasIncident ? (
+      {/* ÁREA DE INCIDENTE INTERATIVA / TELA DE ESPERA */}
+      {isWaiting ? (
+        // NOVO: PAINEL DE "AGUARDANDO START"
+        <View style={[styles.incidentArea, styles.waitingBorder]}>
+           <HourglassIcon />
+           <Text style={styles.lockedTitle}>AGUARDANDO LIBERAÇÃO</Text>
+           <Text style={styles.lockedDesc}>A masmorra está selada.</Text>
+           <Text style={styles.lockedTarget}>
+             Aguarde o Professor iniciar a batalha no painel principal para liberar os ataques!
+           </Text>
+        </View>
+      ) : hasIncident ? (
         isMyIncident ? (
           <View style={[styles.incidentArea, styles.incidentActiveBorder]}>
             <Text style={styles.incidentTitle}>⚠️ INCIDENTE CRÍTICO!</Text>
             <Text style={styles.incidentDesc}>{gameState.active_incident.description}</Text>
+            
+            <Text style={styles.incidentProgress}>
+              Progresso da Equipe: {gameState.active_incident.current_resolutions} / {gameState.active_incident.required_resolutions}
+            </Text>
+
             <Text style={styles.incidentTimer}>⏳ {gameState.incident_timer}s restantes</Text>
             
             {/* 1. JOGO: SEQUENCE (HACKER TERMINAL) */}
@@ -304,33 +330,40 @@ export default function BattleScreen({ route, navigation }: Props) {
              <Text style={styles.lockedTarget}>
                Aguardando equipe de <Text style={{color: '#f43f5e', fontWeight: '900'}}>{gameState.active_incident.target_class.toUpperCase()}</Text>.
              </Text>
+             
+             <Text style={[styles.incidentProgress, {marginTop: 10}]}>
+               Progresso: {gameState.active_incident.current_resolutions} / {gameState.active_incident.required_resolutions}
+             </Text>
+
              <Text style={styles.incidentTimerLock}>⏳ {gameState.incident_timer}s para falha total</Text>
           </View>
         )
       ) : (
-        // NÃO HÁ INCIDENTE
+        // NÃO HÁ INCIDENTE E NÃO ESTÁ WAITING
         <View style={styles.spacerBox} />
       )}
 
-      {/* Botão Gigante de Ataque */}
+      {/* Botão Gigante de Ataque (AGORA MUDA COM O WAITING) */}
       <View style={styles.actionArea}>
         <Animated.View style={{ transform: [{ translateX: shakeAnimation }] }}>
           <TouchableOpacity 
             style={[
               styles.attackButton, 
-              (onCooldown || (hasIncident && !isMyIncident)) && styles.attackButtonDisabled,
-              (hasIncident && !isMyIncident) && { backgroundColor: '#1e293b', shadowOpacity: 0 }
+              (onCooldown || (hasIncident && !isMyIncident) || isWaiting) && styles.attackButtonDisabled,
+              ((hasIncident && !isMyIncident) || isWaiting) && { backgroundColor: '#1e293b', shadowOpacity: 0 }
             ]} 
             onPress={handleAttack}
             activeOpacity={0.7}
           >
-            {(hasIncident && !isMyIncident) ? <LockIcon /> : <Text style={styles.attackText}>ATACAR</Text>}
+            {isWaiting ? <HourglassIcon /> : (hasIncident && !isMyIncident) ? <LockIcon /> : <Text style={styles.attackText}>ATACAR</Text>}
           </TouchableOpacity>
         </Animated.View>
       </View>
       
       <View style={styles.logArea}>
-        <Text style={styles.logText}>{gameState.last_action}</Text>
+        <Text style={[styles.logText, isWaiting && {color: '#f59e0b', fontWeight: 'bold'}]}>
+          {gameState.last_action}
+        </Text>
       </View>
 
     </View>
@@ -346,13 +379,11 @@ const styles = StyleSheet.create({
   playerText: { color: '#cbd5e1', fontSize: 13, fontWeight: 'bold' },
   classText: { color: '#6366f1', fontWeight: '900' },
   
-  // NOVOS ESTILOS PARA VIDA DA EQUIPE
   teamHpContainer: { width: 120 },
   teamHpLabel: { color: '#cbd5e1', fontSize: 10, fontWeight: 'bold', marginBottom: 4, textAlign: 'right' },
   teamHpBar: { height: 8, backgroundColor: '#1e293b', borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: '#334155' },
   teamHpFill: { height: '100%', borderRadius: 4 },
 
-  // NOVOS ESTILOS DAS TELAS DE VITÓRIA / DERROTA
   endGameContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   bgVictory: { backgroundColor: '#064e3b' }, 
   bgDefeat: { backgroundColor: '#450a0a' }, 
@@ -392,20 +423,26 @@ const styles = StyleSheet.create({
   hpBarFill: { height: '100%', borderRadius: 8 },
   
   spacerBox: { height: 230 }, 
-  incidentArea: { borderRadius: 12, padding: 15, marginBottom: 10, minHeight: 230, justifyContent: 'center' },
+  incidentArea: { borderRadius: 12, padding: 15, marginBottom: 10, minHeight: 230, justifyContent: 'center', alignItems: 'center' },
   incidentActiveBorder: { backgroundColor: '#4c0519', borderColor: '#e11d48', borderWidth: 2 },
   incidentLockedBorder: { backgroundColor: '#0f172a', borderColor: '#334155', borderWidth: 1, borderStyle: 'dashed' },
+  
+  // NOVO: Borda temática para quando o jogo está aguardando o professor
+  waitingBorder: { backgroundColor: '#1e293b', borderColor: '#f59e0b', borderWidth: 1, borderStyle: 'dashed' },
+
   incidentTitle: { color: '#fda4af', fontWeight: '900', fontSize: 18, marginBottom: 2, textAlign: 'center', letterSpacing: 1 },
   incidentDesc: { color: '#fecdd3', marginBottom: 5, textAlign: 'center', fontSize: 13 },
+  
+  incidentProgress: { color: '#38bdf8', fontWeight: 'bold', fontSize: 14, textAlign: 'center', marginBottom: 5 },
+  
   incidentTimer: { color: '#f43f5e', fontWeight: 'bold', marginBottom: 10, textAlign: 'center', fontSize: 16 },
-  incidentTimerLock: { color: '#64748b', fontWeight: 'bold', marginTop: 15, textAlign: 'center', fontSize: 14 },
+  incidentTimerLock: { color: '#64748b', fontWeight: 'bold', marginTop: 10, textAlign: 'center', fontSize: 14 },
   
-  lockedTitle: { color: '#94a3b8', fontWeight: '900', fontSize: 18, textAlign: 'center', letterSpacing: 1 },
+  lockedTitle: { color: '#94a3b8', fontWeight: '900', fontSize: 18, textAlign: 'center', letterSpacing: 1, marginTop: 10 },
   lockedDesc: { color: '#64748b', textAlign: 'center', marginTop: 5, fontSize: 13 },
-  lockedTarget: { color: '#cbd5e1', textAlign: 'center', marginTop: 10, fontSize: 13 },
+  lockedTarget: { color: '#cbd5e1', textAlign: 'center', marginTop: 10, fontSize: 13, paddingHorizontal: 20 },
   
-  // ESTILOS DOS JOGOS
-  terminalGameContainer: { alignItems: 'center', backgroundColor: '#020617', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#166534' },
+  terminalGameContainer: { alignItems: 'center', backgroundColor: '#020617', padding: 10, borderRadius: 12, borderWidth: 1, borderColor: '#166534', width: '100%' },
   terminalHint: { color: '#22c55e', marginBottom: 10, fontSize: 11, fontWeight: '900', letterSpacing: 2, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
   terminalSlots: { flexDirection: 'row', gap: 15, marginBottom: 15 },
   terminalSlot: { width: 40, height: 50, borderBottomWidth: 3, borderBottomColor: '#22c55e', justifyContent: 'center', alignItems: 'center', backgroundColor: '#064e3b' },
