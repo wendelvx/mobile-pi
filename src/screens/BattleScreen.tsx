@@ -14,7 +14,6 @@ import * as Haptics from 'expo-haptics';
 import { socket } from '../services/socket';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
-// Ícones básicos provisórios
 const LockIcon = () => <Text style={{fontSize: 40}}>🔒</Text>; 
 const HourglassIcon = () => <Text style={{fontSize: 40}}>⏳</Text>; 
 const TrophyIcon = () => <Text style={{fontSize: 80, marginBottom: 20}}>🏆</Text>;
@@ -27,7 +26,6 @@ type RootStackParamList = {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Battle'>;
 
-// MAPEAMENTO DAS FOTOS LOCAIS
 const BOSS_AVATARS: Record<string, any> = {
   'infra_boss': require('../../assets/infra_boss.jpg'),
   'logic_boss': require('../../assets/logic_boss.jpg'),
@@ -40,15 +38,12 @@ export default function BattleScreen({ route, navigation }: Props) {
   const [gameState, setGameState] = useState<any>(null);
   const [onCooldown, setOnCooldown] = useState(false);
   
-  // Estados para os Mini-Games
   const [sequenceInputs, setSequenceInputs] = useState<string[]>([]);
   const [clickCount, setClickCount] = useState(0);
   
-  // Animações
   const shakeAnimation = useRef(new Animated.Value(0)).current;
   const bossHitAnim = useRef(new Animated.Value(1)).current; // NOVO: Animação do Boss
   
-  // Controle de Dano e Tempo para Animação do Boss
   const prevBossHp = useRef<number | null>(null);
   const lastHitAnimTime = useRef<number>(0);
 
@@ -60,12 +55,9 @@ export default function BattleScreen({ route, navigation }: Props) {
     socket.on('boss_update', (data) => {
       setGameState(data);
       
-      // ========================================================
-      // LÓGICA DA ANIMAÇÃO DE DANO (THROTTLE DE 400ms)
-      // ========================================================
+      
       if (prevBossHp.current !== null && data.boss_hp < prevBossHp.current) {
         const now = Date.now();
-        // Só anima se passou mais de 400ms desde a última animação para não bugar a tela
         if (now - lastHitAnimTime.current > 400) {
            lastHitAnimTime.current = now;
            Animated.sequence([
@@ -93,7 +85,7 @@ export default function BattleScreen({ route, navigation }: Props) {
     socket.on('room_reset', () => {
        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
        Alert.alert('Nova Tentativa', 'O Professor resetou a masmorra. Preparem-se para um novo round!');
-       prevBossHp.current = null; // Reseta a referência da vida ao reiniciar
+       prevBossHp.current = null; 
     });
 
     socket.on('room_deleted', (data) => {
@@ -176,9 +168,7 @@ export default function BattleScreen({ route, navigation }: Props) {
     );
   }
 
-  // ==========================================
-  // TELAS DE FIM DE JOGO (VITÓRIA / DERROTA)
-  // ==========================================
+  
   if (gameState.status === 'victory' || gameState.status === 'defeat') {
     const isVictory = gameState.status === 'victory';
     return (
@@ -189,7 +179,6 @@ export default function BattleScreen({ route, navigation }: Props) {
           {isVictory ? 'A equipe derrotou o incidente final.' : 'A integridade da equipe chegou a zero.'}
         </Text>
         
-        {/* Painel do TOP 3 */}
         {gameState.top_rank && gameState.top_rank.length > 0 && (
           <View style={styles.mvpPanel}>
             <Text style={styles.mvpLabel}>🌟 TOP 3 DESTAQUES 🌟</Text>
@@ -224,9 +213,7 @@ export default function BattleScreen({ route, navigation }: Props) {
     );
   }
 
-  // ==========================================
-  // ESTADO NORMAL (EM COMBATE OU ESPERANDO)
-  // ==========================================
+  
   const bossHpPercent = Math.max(0, (gameState.boss_hp / gameState.current_boss.max_hp) * 100);
   const teamHpPercent = Math.max(0, ((gameState.team_hp || 100) / (gameState.max_team_hp || 100)) * 100); 
 
@@ -239,7 +226,6 @@ export default function BattleScreen({ route, navigation }: Props) {
   return (
     <View style={styles.container}>
       
-      {/* Header COM BARRA DE VIDA DA EQUIPE */}
       <View style={styles.header}>
         <View style={{flex: 1}}>
           <Text style={styles.playerText}>{nickname} <Text style={styles.classText}>[{playerClass.toUpperCase()}]</Text></Text>
@@ -254,7 +240,6 @@ export default function BattleScreen({ route, navigation }: Props) {
         </View>
       </View>
 
-      {/* Área do Boss */}
       <View style={styles.bossArea}>
         <Animated.View style={[
             styles.avatarContainer, 

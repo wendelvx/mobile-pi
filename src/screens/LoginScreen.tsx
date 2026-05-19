@@ -108,7 +108,6 @@ export default function LoginScreen({ navigation }: Props) {
     socket.emit('join_game', { 
       nickname: nickname.trim(), 
       class: selectedClassId, 
-      // 💥 CORREÇÃO: Força para maiúsculo para casar com o Redis exatamente
       room_id: roomId.trim().toUpperCase() 
     });
   };
@@ -215,9 +214,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    // REMOVIDO: justifyContent: 'center' que causava os pulos na tela
     paddingHorizontal: 24,
-    paddingTop: 60, // Dá espaço em cima no lugar de centralizar
+    paddingTop: 60, 
     paddingBottom: 40,
   },
   header: {
