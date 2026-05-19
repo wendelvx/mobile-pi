@@ -73,9 +73,17 @@ export default function BattleScreen({ route, navigation }: Props) {
        Alert.alert('Nova Tentativa', 'O Professor resetou a masmorra. Preparem-se para um novo round!');
     });
 
+    // 💥 NOVO: Escuta a exclusão da sala e devolve o aluno pro Login
+    socket.on('room_deleted', (data) => {
+       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+       Alert.alert('Sessão Encerrada', data.message);
+       navigation.replace('Login'); // Redireciona de volta
+    });
+
     return () => {
       socket.off('boss_update');
       socket.off('room_reset');
+      socket.off('room_deleted'); // Limpeza do novo evento
       socket.off('disconnect');
     };
   }, [navigation]);

@@ -108,7 +108,8 @@ export default function LoginScreen({ navigation }: Props) {
     socket.emit('join_game', { 
       nickname: nickname.trim(), 
       class: selectedClassId, 
-      room_id: roomId.trim() 
+      // 💥 CORREÇÃO: Força para maiúsculo para casar com o Redis exatamente
+      room_id: roomId.trim().toUpperCase() 
     });
   };
 
